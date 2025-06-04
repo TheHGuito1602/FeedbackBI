@@ -116,30 +116,42 @@ class PoseAppGUI:
     def update_frame(self):
         if not self.running or self.cap is None:
             return
+
         ret, frame = self.cap.read()
-        feedback_text = ""
-        feedback_color = (0, 0, 0)
         if not ret:
             self._after_id = self.root.after(100, self.update_frame)
             return
 
-        self.last_frame = frame.copy()
-
+        # Procesamiento con MediaPipe
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         resultados = pose.process(frame_rgb)
         angulo = None
+        feedback_text = ""
+        feedback_color = (0, 0, 0)
+
         if resultados.pose_landmarks:
             if self.ejercicio_var.get() == 1:
                 angulo = detectar_parte_superior(resultados.pose_landmarks.landmark, frame)
             elif self.ejercicio_var.get() == 2:
                 angulo = detectar_parte_inferior(resultados.pose_landmarks.landmark, frame)
             mp_drawing.draw_landmarks(frame, resultados.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+
         if angulo is not None:
             feedback_text, feedback_color = feedback_ejercicio(angulo)
 
+        # Guardar el frame procesado
+        self.last_frame = frame.copy()
+
+        # Mostrar inmediatamente
         self.mostrar_frame_actual()
+
+        # Mostrar feedback
         self.feedback_label.config(text=feedback_text, foreground=self.rgb_to_hex(feedback_color))
+
+        # Programar el siguiente frame
         self._after_id = self.root.after(10, self.update_frame)
+
+
 
     def rgb_to_hex(self, rgb):
         return "#%02x%02x%02x" % rgb
