@@ -36,15 +36,15 @@ def detectar_parte_superior(landmarks, frame):
                         articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW) and \
                         articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_WRIST)
 
+    # Retorna el ángulo del brazo izquierdo si está visible, si no el derecho, si no None
     if brazo_izq_visible:
         angulo_codo_izq = calcular_angulo(hombro_izq, codo_izq, muñeca_izq)
-        mensaje_izq, color_izq = feedback_ejercicio(angulo_codo_izq)
-        cv2.putText(frame, f'B. IZQ. = {mensaje_izq}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color_izq, 2, cv2.LINE_AA)
-
-    if brazo_der_visible:
+        return angulo_codo_izq
+    elif brazo_der_visible:
         angulo_codo_der = calcular_angulo(hombro_der, codo_der, muñeca_der)
-        mensaje_der, color_der = feedback_ejercicio(angulo_codo_der)
-        cv2.putText(frame, f'B. DER. = {mensaje_der}', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, color_der, 2, cv2.LINE_AA)
+        return angulo_codo_der
+    else:
+        return None
 
 def detectar_parte_inferior(landmarks, frame):
     cadera_izq = [landmarks[mp_pose.PoseLandmark.LEFT_HIP].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP].y]
@@ -63,12 +63,12 @@ def detectar_parte_inferior(landmarks, frame):
                           articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_KNEE) and \
                           articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_ANKLE)
 
+    # Retorna el ángulo de la pierna izquierda si está visible, si no el derecho, si no None
     if pierna_izq_visible:
         angulo_rodilla_izq = calcular_angulo(cadera_izq, rodilla_izq, tobillo_izq)
-        mensaje_izq, color_izq = feedback_ejercicio(angulo_rodilla_izq)
-        cv2.putText(frame, f'P. IZQ. = {mensaje_izq}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color_izq, 2, cv2.LINE_AA)
-
-    if pierna_der_visible:
+        return angulo_rodilla_izq
+    elif pierna_der_visible:
         angulo_rodilla_der = calcular_angulo(cadera_der, rodilla_der, tobillo_der)
-        mensaje_der, color_der = feedback_ejercicio(angulo_rodilla_der)
-        cv2.putText(frame, f'P. DER. = {mensaje_der}', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, color_der, 2, cv2.LINE_AA)
+        return angulo_rodilla_der
+    else:
+        return None
