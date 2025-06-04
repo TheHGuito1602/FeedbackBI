@@ -7,7 +7,6 @@ import mediapipe as mp
 from pose_utils import detectar_parte_superior, detectar_parte_inferior
 
 def listar_camaras(max_camaras=5):
-    import cv2
     disponibles = []
     for i in range(max_camaras):
         cap = cv2.VideoCapture(i)
@@ -32,6 +31,7 @@ class PoseAppGUI:
         self.ejercicio_var = ejercicio_var
         self.cap = None
         self.running = False
+        self.last_frame = None
 
         # Menú superior
         menubar = tk.Menu(root)
@@ -60,15 +60,58 @@ class PoseAppGUI:
         ttk.Button(frame_left, text="Salir", command=self.cerrar).pack(pady=10)
 
         # Panel de cámara
-        self.panel = ttk.Label(root)
-        self.panel.grid(row=0, column=1, padx=10, pady=10)
+        self.panel = tk.Canvas(root, bg="black", highlightthickness=0)
+        self.panel.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        self.root.grid_columnconfigure(1, weight=1)
+        self.root.grid_rowconfigure(0, weight=1)
 
         # Label para feedback debajo del panel de cámara
         self.feedback_label = ttk.Label(root, text="", font=("Arial", 14))
         self.feedback_label.grid(row=1, column=1, pady=(0, 10))
 
+        # Hacer la columna 1 expandible
+        root.grid_columnconfigure(1, weight=1)
+        root.grid_rowconfigure(0, weight=1)
+
+        # Vincula el evento de cambio de tamaño
+        self.panel.bind("<Configure>", self.on_resize)
+
     def mostrar_acerca(self):
-        messagebox.showinfo("Acerca de", "App de ejercicios con cámara.\nDesarrollado por Hugo.")
+        messagebox.showinfo("Acerca de", "App de ejercicios con cámara.\nDesarrollado por CodeLab Freelancers.")
+
+    def on_resize(self, event):
+        self.panel_width = max(100, event.width)
+        self.panel_height = max(100, event.height)
+        self.mostrar_frame_actual()
+
+    def mostrar_frame_actual(self):
+        if self.last_frame is None:
+            return
+
+        frame = self.last_frame.copy()
+        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(img)
+
+        # Obtener el tamaño actual del canvas
+        panel_w = self.panel.winfo_width()
+        panel_h = self.panel.winfo_height()
+
+        orig_w, orig_h = img.size
+        ratio = min(panel_w / orig_w, panel_h / orig_h)
+        new_w = int(orig_w * ratio)
+        new_h = int(orig_h * ratio)
+        img = img.resize((new_w, new_h), Image.BILINEAR)
+
+        imgtk = ImageTk.PhotoImage(image=img)
+        self.panel.imgtk = imgtk  # evita el garbage collection
+
+        if not hasattr(self, 'canvas_image_id'):
+            self.canvas_image_id = self.panel.create_image(panel_w // 2, panel_h // 2, image=imgtk)
+        else:
+            self.panel.itemconfig(self.canvas_image_id, image=imgtk)
+            self.panel.coords(self.canvas_image_id, panel_w // 2, panel_h // 2)
+
+
 
     def update_frame(self):
         if not self.running or self.cap is None:
@@ -76,25 +119,25 @@ class PoseAppGUI:
         ret, frame = self.cap.read()
         feedback_text = ""
         feedback_color = (0, 0, 0)
-        if ret:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            resultados = pose.process(frame_rgb)
-            angulo = None
-            if resultados.pose_landmarks:
-                if self.ejercicio_var.get() == 1:
-                    angulo = detectar_parte_superior(resultados.pose_landmarks.landmark, frame)
-                elif self.ejercicio_var.get() == 2:
-                    angulo = detectar_parte_inferior(resultados.pose_landmarks.landmark, frame)
-                mp_drawing.draw_landmarks(frame, resultados.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-            if angulo is not None:
-                feedback_text, feedback_color = feedback_ejercicio(angulo)
-            img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(img)
-            img = img.resize((1280, 800))  # <-- AQUÍ defines el tamaño de la cámara
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.panel.imgtk = imgtk
-            self.panel.config(image=imgtk)
-        # Actualiza el label de feedback
+        if not ret:
+            self._after_id = self.root.after(100, self.update_frame)
+            return
+
+        self.last_frame = frame.copy()
+
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        resultados = pose.process(frame_rgb)
+        angulo = None
+        if resultados.pose_landmarks:
+            if self.ejercicio_var.get() == 1:
+                angulo = detectar_parte_superior(resultados.pose_landmarks.landmark, frame)
+            elif self.ejercicio_var.get() == 2:
+                angulo = detectar_parte_inferior(resultados.pose_landmarks.landmark, frame)
+            mp_drawing.draw_landmarks(frame, resultados.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+        if angulo is not None:
+            feedback_text, feedback_color = feedback_ejercicio(angulo)
+
+        self.mostrar_frame_actual()
         self.feedback_label.config(text=feedback_text, foreground=self.rgb_to_hex(feedback_color))
         self._after_id = self.root.after(10, self.update_frame)
 
@@ -106,25 +149,24 @@ class PoseAppGUI:
         if self.cap is not None:
             self.cap.release()
         self.root.destroy()
-    
+
     def actualizar_camaras(self):
         self.camaras = listar_camaras()
         self.combo_camaras['values'] = [str(c) for c in self.camaras]
         if self.camaras:
             self.camara_var.set(str(self.camaras[0]))
-    
+
     def iniciar_captura(self):
         if not self.camaras:
             messagebox.showerror("Error", "No hay cámaras disponibles.")
             return
 
-        # Detener captura anterior si está corriendo
         self.running = False
         if hasattr(self, '_after_id') and self._after_id is not None:
             try:
                 self.root.after_cancel(self._after_id)
             except Exception:
-                pass  # Si no es válido, simplemente ignora
+                pass
 
         if self.cap is not None:
             self.cap.release()
