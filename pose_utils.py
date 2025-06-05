@@ -1,74 +1,82 @@
+# pose_utils.py
+
 import numpy as np
-import cv2
 import mediapipe as mp
 
 mp_pose = mp.solutions.pose
 
 def calcular_angulo(p1, p2, p3):
-    angulo = np.degrees(np.arctan2(p3[1] - p2[1], p3[0] - p2[0]) - np.arctan2(p1[1] - p2[1], p1[0] - p2[0]))
-    if angulo < 0:
-        angulo += 360
-    return angulo
-
-def feedback_ejercicio(angulo):
-    if 160 <= angulo <= 180:
-        return "Ejercicio correcto", (0, 255, 0)
-    else:
-        return "Corrige el ángulo. Debe estar recto.", (0, 0, 255)
+    """
+    Calcula el ángulo interior formado por los puntos p1-p2-p3 (p2 es el vértice).
+    Devuelve siempre un valor ≤ 180°.
+    """
+    ang = np.degrees(
+        np.arctan2(p3[1] - p2[1], p3[0] - p2[0]) -
+        np.arctan2(p1[1] - p2[1], p1[0] - p2[0])
+    )
+    if ang < 0:
+        ang += 360
+    if ang > 180:
+        ang = 360 - ang
+    return ang
 
 def articulacion_visible(landmarks, articulacion):
-    return landmarks[articulacion].visibility > 0.5
+    """
+    Verifica si una articulación (landmark) está suficientemente visible.
+    Umbral reducido a 0.3 para captar mejor ambos lados.
+    """
+    return landmarks[articulacion].visibility > 0.3
 
-def detectar_parte_superior(landmarks, frame):
-    hombro_izq = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y]
-    codo_izq = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW].x, landmarks[mp_pose.PoseLandmark.LEFT_ELBOW].y]
-    muñeca_izq = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST].x, landmarks[mp_pose.PoseLandmark.LEFT_WRIST].y]
+def detectar_codo(landmarks, lado):
+    """
+    Dado el parámetro 'lado' ("izq" o "der"), intenta detectar hombro, codo y muñeca
+    de ese lado y devuelve el ángulo interior del codo.
+    Si no alcanza visibilidad, devuelve None.
+    """
+    if lado == "izq":
+        h = mp_pose.PoseLandmark.LEFT_SHOULDER
+        e = mp_pose.PoseLandmark.LEFT_ELBOW
+        w = mp_pose.PoseLandmark.LEFT_WRIST
+    else:  # lado == "der"
+        h = mp_pose.PoseLandmark.RIGHT_SHOULDER
+        e = mp_pose.PoseLandmark.RIGHT_ELBOW
+        w = mp_pose.PoseLandmark.RIGHT_WRIST
 
-    hombro_der = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
-    codo_der = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
-    muñeca_der = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
-
-    brazo_izq_visible = articulacion_visible(landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER) and \
-                        articulacion_visible(landmarks, mp_pose.PoseLandmark.LEFT_ELBOW) and \
-                        articulacion_visible(landmarks, mp_pose.PoseLandmark.LEFT_WRIST)
-
-    brazo_der_visible = articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER) and \
-                        articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_ELBOW) and \
-                        articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_WRIST)
-
-    # Retorna el ángulo del brazo izquierdo si está visible, si no el derecho, si no None
-    if brazo_izq_visible:
-        angulo_codo_izq = calcular_angulo(hombro_izq, codo_izq, muñeca_izq)
-        return angulo_codo_izq
-    elif brazo_der_visible:
-        angulo_codo_der = calcular_angulo(hombro_der, codo_der, muñeca_der)
-        return angulo_codo_der
+    if (
+        articulacion_visible(landmarks, h)
+        and articulacion_visible(landmarks, e)
+        and articulacion_visible(landmarks, w)
+    ):
+        hombro = [landmarks[h].x, landmarks[h].y]
+        codo    = [landmarks[e].x, landmarks[e].y]
+        muñeca  = [landmarks[w].x, landmarks[w].y]
+        return calcular_angulo(hombro, codo, muñeca)
     else:
         return None
 
-def detectar_parte_inferior(landmarks, frame):
-    cadera_izq = [landmarks[mp_pose.PoseLandmark.LEFT_HIP].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP].y]
-    rodilla_izq = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE].y]
-    tobillo_izq = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE].y]
+def detectar_rodilla(landmarks, lado):
+    """
+    Dado 'lado' ("izq" o "der"), intenta detectar cadera, rodilla y tobillo
+    de ese lado y devuelve el ángulo interior de la rodilla.
+    Si no alcanza visibilidad, devuelve None.
+    """
+    if lado == "izq":
+        h = mp_pose.PoseLandmark.LEFT_HIP
+        k = mp_pose.PoseLandmark.LEFT_KNEE
+        a = mp_pose.PoseLandmark.LEFT_ANKLE
+    else:  # lado == "der"
+        h = mp_pose.PoseLandmark.RIGHT_HIP
+        k = mp_pose.PoseLandmark.RIGHT_KNEE
+        a = mp_pose.PoseLandmark.RIGHT_ANKLE
 
-    cadera_der = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x, landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y]
-    rodilla_der = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE].x, landmarks[mp_pose.PoseLandmark.RIGHT_KNEE].y]
-    tobillo_der = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE].x, landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE].y]
-
-    pierna_izq_visible = articulacion_visible(landmarks, mp_pose.PoseLandmark.LEFT_HIP) and \
-                          articulacion_visible(landmarks, mp_pose.PoseLandmark.LEFT_KNEE) and \
-                          articulacion_visible(landmarks, mp_pose.PoseLandmark.LEFT_ANKLE)
-
-    pierna_der_visible = articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_HIP) and \
-                          articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_KNEE) and \
-                          articulacion_visible(landmarks, mp_pose.PoseLandmark.RIGHT_ANKLE)
-
-    # Retorna el ángulo de la pierna izquierda si está visible, si no el derecho, si no None
-    if pierna_izq_visible:
-        angulo_rodilla_izq = calcular_angulo(cadera_izq, rodilla_izq, tobillo_izq)
-        return angulo_rodilla_izq
-    elif pierna_der_visible:
-        angulo_rodilla_der = calcular_angulo(cadera_der, rodilla_der, tobillo_der)
-        return angulo_rodilla_der
+    if (
+        articulacion_visible(landmarks, h)
+        and articulacion_visible(landmarks, k)
+        and articulacion_visible(landmarks, a)
+    ):
+        cadera  = [landmarks[h].x, landmarks[h].y]
+        rodilla = [landmarks[k].x, landmarks[k].y]
+        tobillo = [landmarks[a].x, landmarks[a].y]
+        return calcular_angulo(cadera, rodilla, tobillo)
     else:
         return None
