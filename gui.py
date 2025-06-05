@@ -249,30 +249,31 @@ class PoseAppGUI:
             self.ejercicio_var.get(),
             self.side_var.get()
         )
-
         print(f"Ejercicio={self.ejercicio_var.get()}, Lado={self.side_var.get()}, Ángulo={angulo_detectado}")
 
-        # ...existing code...
-        if self.running and self.ejercicio_var.get() == 1:
+        # Lógica para contar repeticiones en ambos ejercicios
+        if self.running:
             if angulo_detectado is not None:
-                if self.stage == "out" and ang_min <= angulo_detectado <= ang_max:
-                    self.stage = "in"
-                elif self.stage == "in" and not (ang_min <= angulo_detectado <= ang_max):
-                    self.reps += 1
-                    self.stage = "out"
-                    if self.reps >= self.current_target_reps:
-                        self.series_left -= 1
-                        self.series_label.config(text=f"Series restantes: {self.series_left}")
-                        if self.series_left <= 0:
-                            self.running = False
-                            self.feedback_label.config(text="¡Ejercicio completado!", foreground="#008000")
-                            self.counter_label.config(text=f"Reps: {self.current_target_reps}")
-                            messagebox.showinfo("Completado", "¡Has completado todas las series del ejercicio!")
+                if ang_min <= angulo_detectado <= ang_max:
+                    if self.stage == "out":
+                        self.stage = "in"
+                else:
+                    if self.stage == "in":
+                        self.reps += 1
+                        self.stage = "out"
+                        if self.reps >= self.current_target_reps:
+                            self.series_left -= 1
+                            self.series_label.config(text=f"Series restantes: {self.series_left}")
+                            if self.series_left <= 0:
+                                self.running = False
+                                self.feedback_label.config(text="¡Ejercicio completado!", foreground="#008000")
+                                self.counter_label.config(text=f"Reps: {self.current_target_reps}")
+                                messagebox.showinfo("Completado", "¡Has completado todas las series del ejercicio!")
+                            else:
+                                self.reps = 0
+                                self.counter_label.config(text=f"Reps: {self.reps}")
                         else:
-                            self.reps = 0
                             self.counter_label.config(text=f"Reps: {self.reps}")
-                    else:
-                        self.counter_label.config(text=f"Reps: {self.reps}")
         # ...existing code...
 
         # Guardar y mostrar el último frame siempre
